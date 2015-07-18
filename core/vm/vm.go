@@ -24,6 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/logger"
+	"github.com/ethereum/go-ethereum/logger/glog"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -55,17 +57,61 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 	self.env.SetDepth(self.env.Depth() + 1)
 	defer self.env.SetDepth(self.env.Depth() - 1)
 
+	// User defer pattern to check for an error and, based on the error being nil or not, use all gas and return.
+	defer func() {
+		if err != nil {
+			// In case of a VM exception (known exceptions) all gas consumed (panics NOT included).
+			context.UseGas(context.Gas)
+
+			ret = context.Return(nil)
+		}
+	}()
+
+	if context.CodeAddr != nil {
+		if p := Precompiled[context.CodeAddr.Str()]; p != nil {
+			return self.RunPrecompiled(p, input, context)
+		}
+	}
+
+	codehash := crypto.Sha3Hash(context.Code) // codehash is used when doing jump dest caching
+	if !DisableJit {
+		if status := GetProgramStatus(codehash); status == progReady {
+			return RunProgram(GetProgram(codehash), self.env, context, input)
+		} else if status == progUnknown {
+			if ForceJit {
+				// wait for jit
+				program := NewProgram()
+				perr := AttachProgram(program, context.Code)
+				if perr != nil {
+					glog.V(logger.Info).Infoln("error compiling program", err)
+				} else {
+					LinkProgram(codehash, program)
+					return RunProgram(GetProgram(codehash), self.env, context, input)
+				}
+			} else {
+				go func() {
+					program := NewProgram()
+					err := AttachProgram(program, context.Code)
+					if err != nil {
+						glog.V(logger.Info).Infoln("error compiling program", err)
+						return
+					}
+					LinkProgram(codehash, program)
+				}()
+			}
+		}
+	}
+
 	var (
 		caller = context.caller
 		code   = context.Code
 		value  = context.value
 		price  = context.Price
 
-		op       OpCode                  // current opcode
-		codehash = crypto.Sha3Hash(code) // codehash is used when doing jump dest caching
-		mem      = NewMemory()           // bound memory
-		stack    = newstack()            // local stack
-		statedb  = self.env.State()      // current state
+		op      OpCode             // current opcode
+		mem     = NewMemory()      // bound memory
+		stack   = newstack()       // local stack
+		statedb = self.env.State() // current state
 		// For optimisation reason we're using uint64 as the program counter.
 		// It's theoretically possible to go above 2^64. The YP defines the PC to be uint256. Pratically much less so feasible.
 		pc = uint64(0) // program counter
@@ -89,32 +135,20 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 
 	// User defer pattern to check for an error and, based on the error being nil or not, use all gas and return.
 	defer func() {
-		if self.After != nil {
-			self.After(context, err)
-		}
-
 		if err != nil {
 			self.log(pc, op, context.Gas, cost, mem, stack, context, err)
-
-			// In case of a VM exception (known exceptions) all gas consumed (panics NOT included).
-			context.UseGas(context.Gas)
-
-			ret = context.Return(nil)
 		}
 	}()
-
-	if context.CodeAddr != nil {
-		if p := Precompiled[context.CodeAddr.Str()]; p != nil {
-			return self.RunPrecompiled(p, input, context)
-		}
-	}
 
 	// Don't bother with the execution if there's no code.
 	if len(code) == 0 {
 		return context.Return(nil), nil
 	}
 
+	iterations := 0
+	//defer func() { fmt.Println("instructions", iterations) }()
 	for {
+		iterations++
 		// The base for all big integer arithmetic
 		base := new(big.Int)
 
@@ -122,7 +156,7 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 		op = context.GetOp(pc)
 
 		// calculate the new memory size and gas price for the current executing opcode
-		newMemSize, cost, err = self.calculateGasAndSize(context, caller, op, statedb, mem, stack)
+		newMemSize, cost, err = calculateGasAndSize(self.env, context, caller, op, statedb, mem, stack)
 		if err != nil {
 			return nil, err
 		}
@@ -130,11 +164,9 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 		// Use the calculated gas. When insufficient gas is present, use all gas and return an
 		// Out Of Gas error
 		if !context.UseGas(cost) {
-
-			context.UseGas(context.Gas)
-
-			return context.Return(nil), OutOfGasError
+			return nil, OutOfGasError
 		}
+
 		// Resize the memory calculated previously
 		mem.Resize(newMemSize.Uint64())
 		// Add a log message
@@ -556,7 +588,6 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 			stack.push(big.NewInt(int64(mem.Len())))
 		case GAS:
 			stack.push(new(big.Int).Set(context.Gas))
-
 		case CREATE:
 
 			var (
@@ -652,7 +683,7 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 
 // calculateGasAndSize calculates the required given the opcode and stack items calculates the new memorysize for
 // the operation. This does not reduce gas or resizes the memory.
-func (self *Vm) calculateGasAndSize(context *Context, caller ContextRef, op OpCode, statedb *state.StateDB, mem *Memory, stack *stack) (*big.Int, *big.Int, error) {
+func calculateGasAndSize(env Environment, context *Context, caller ContextRef, op OpCode, statedb *state.StateDB, mem *Memory, stack *stack) (*big.Int, *big.Int, error) {
 	var (
 		gas                 = new(big.Int)
 		newMemSize *big.Int = new(big.Int)
@@ -759,7 +790,7 @@ func (self *Vm) calculateGasAndSize(context *Context, caller ContextRef, op OpCo
 		gas.Add(gas, stack.data[stack.len()-1])
 
 		if op == CALL {
-			if self.env.State().GetStateObject(common.BigToAddress(stack.data[stack.len()-2])) == nil {
+			if env.State().GetStateObject(common.BigToAddress(stack.data[stack.len()-2])) == nil {
 				gas.Add(gas, params.CallNewAccountGas)
 			}
 		}

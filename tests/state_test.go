@@ -20,7 +20,24 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/vm"
 )
+
+func init() {
+	vm.DisableJit = true
+	//vm.ForceJit = true
+}
+
+func BenchmarkStateSystemOperations(b *testing.B) {
+	fn := filepath.Join(stateTestDir, "stSystemOperationsTest.json")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := RunStateTest(fn, StateSkipTests); err != nil {
+			b.Error(err)
+		}
+	}
+}
 
 func TestStateSystemOperations(t *testing.T) {
 	fn := filepath.Join(stateTestDir, "stSystemOperationsTest.json")
