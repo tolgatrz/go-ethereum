@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -14,48 +13,55 @@ import (
 
 const maxRun = 1000
 
-func TestNative(t *testing.T) {
+type vmBench struct {
+	precompile bool // compile prior to executing
+	nojit      bool // ignore jit (sets DisbaleJit = true
+	forcejit   bool // forces the jit, precompile is ignored
+
+	code  []byte
+	input []byte
+}
+
+func runVmBench(test vmBench, b *testing.B) {
 	db, _ := ethdb.NewMemDatabase()
 	sender := state.NewStateObject(common.Address{}, db)
 
-	var (
-		env   = NewEnv()
-		input = []byte{0, 0}
-	)
-
-	tstart := time.Now()
-	program := NewProgram()
-	code := common.Hex2Bytes("600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01")
-	err := AttachProgram(program, code)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-
-	for i := 0; i < maxRun; i++ {
-		context := NewContext(sender, sender, big.NewInt(100), big.NewInt(10000), big.NewInt(0))
-		_, err = RunProgram(program, env, context, input)
+	if test.precompile && !test.forcejit {
+		program := NewProgram(test.Code)
+		err := AttachProgram(program)
 		if err != nil {
-			t.Error(err)
-			t.FailNow()
+			b.Error(err)
+			b.FailNow()
 		}
 	}
-	fmt.Println("native", time.Since(tstart))
+	env := NewEnv()
 
-	tstart = time.Now()
-	DisableJit = true
-	for i := 0; i < maxRun; i++ {
+	DisableJit = test.nojit
+	ForceJit = test.forcejit
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
 		context := NewContext(sender, sender, big.NewInt(100), big.NewInt(10000), big.NewInt(0))
-		context.Code = code
+		context.Code = test.code
 		context.CodeAddr = &common.Address{}
-		_, err := New(env).Run(context, input)
+		_, err := New(env).Run(context, test.input)
 		if err != nil {
-			t.Error(err)
-			t.FailNow()
+			b.Error(err)
+			b.FailNow()
 		}
-
 	}
-	fmt.Println("vm", time.Since(tstart))
+}
+
+var benchmarks = map[string]vmBench{
+	"pushes": vmBench{
+		false, false, false,
+		common.Hex2Bytes("600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01600a600a01"), nil,
+	},
+}
+
+func BenchmarkPushes(b *testing.B) {
+	runVmBench(benchmarks["pushes"], b)
 }
 
 type Env struct {

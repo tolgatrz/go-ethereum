@@ -80,23 +80,21 @@ func (self *Vm) Run(context *Context, input []byte) (ret []byte, err error) {
 		} else if status == progUnknown {
 			if ForceJit {
 				// wait for jit
-				program := NewProgram()
-				perr := AttachProgram(program, context.Code)
+				program := NewProgram(context.Code)
+				perr := CompileProgram(program)
 				if perr != nil {
 					glog.V(logger.Info).Infoln("error compiling program", err)
 				} else {
-					LinkProgram(codehash, program)
 					return RunProgram(GetProgram(codehash), self.env, context, input)
 				}
 			} else {
 				go func() {
-					program := NewProgram()
-					err := AttachProgram(program, context.Code)
+					program := NewProgram(context.Code)
+					err := CompileProgram(program)
 					if err != nil {
 						glog.V(logger.Info).Infoln("error compiling program", err)
 						return
 					}
-					LinkProgram(codehash, program)
 				}()
 			}
 		}

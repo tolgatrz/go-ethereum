@@ -21,6 +21,26 @@ import (
 	"testing"
 )
 
+type bconf struct {
+	name    string
+	precomp bool
+	nojit   bool
+}
+
+func BenchmarkPerformanceAckermann32Tests(b *testing.B) {
+	fn := filepath.Join(vmTestDir, "vmPerformanceTest.json")
+	if err := BenchVmTest(fn, bconf{"ackermann32", true, false}, b); err != nil {
+		b.Error(err)
+	}
+}
+
+func BenchmarkPerformanceFibonacci16Tests(b *testing.B) {
+	fn := filepath.Join(vmTestDir, "vmPerformanceTest.json")
+	if err := BenchVmTest(fn, bconf{"fibonacci16", true, false}, b); err != nil {
+		b.Error(err)
+	}
+}
+
 // I've created a new function for each tests so it's easier to identify where the problem lies if any of them fail.
 func TestVMArithmetic(t *testing.T) {
 	fn := filepath.Join(vmTestDir, "vmArithmeticTest.json")

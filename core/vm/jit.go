@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type progStatus int32
@@ -23,14 +24,14 @@ var (
 	programs  = map[common.Hash]*Program{}
 )
 
-func GetProgram(addr common.Hash) *Program {
+func GetProgram(id common.Hash) *Program {
 	programMu.RLock()
 	defer programMu.RUnlock()
-	return programs[addr]
+	return programs[id]
 }
 
-func GetProgramStatus(addr common.Hash) progStatus {
-	program := GetProgram(addr)
+func GetProgramStatus(id common.Hash) progStatus {
+	program := GetProgram(id)
 	if program != nil {
 		return progStatus(atomic.LoadInt32(&program.status))
 	}
@@ -38,14 +39,9 @@ func GetProgramStatus(addr common.Hash) progStatus {
 	return progUnknown
 }
 
-func LinkProgram(addr common.Hash, program *Program) {
-	programMu.Lock()
-	defer programMu.Unlock()
-	programs[addr] = program
-}
-
 // Program compiled program
 type Program struct {
+	Id     common.Hash
 	status int32 // status should be accessed atomically
 
 	context *Context
@@ -53,10 +49,23 @@ type Program struct {
 	instructions []instruction
 	mapping      map[uint64]int
 	destinations map[uint64]struct{}
+
+	code []byte
 }
 
-func NewProgram() *Program {
-	return &Program{mapping: make(map[uint64]int), destinations: make(map[uint64]struct{})}
+func NewProgram(code []byte) *Program {
+	program := &Program{
+		Id:           crypto.Sha3Hash(code),
+		mapping:      make(map[uint64]int),
+		destinations: make(map[uint64]struct{}),
+		code:         code,
+	}
+
+	programMu.Lock()
+	defer programMu.Unlock()
+
+	programs[program.Id] = program
+	return program
 }
 
 func (p *Program) addInstr(op OpCode, pc uint64, fn instrFn, data *big.Int) {
@@ -64,7 +73,7 @@ func (p *Program) addInstr(op OpCode, pc uint64, fn instrFn, data *big.Int) {
 	p.mapping[pc] = len(p.instructions) - 1
 }
 
-func AttachProgram(program *Program, code []byte) (err error) {
+func CompileProgram(program *Program) (err error) {
 	if progStatus(atomic.LoadInt32(&program.status)) == progCompile {
 		return nil
 	}
@@ -77,8 +86,8 @@ func AttachProgram(program *Program, code []byte) (err error) {
 		}
 	}()
 
-	for pc := uint64(0); pc < uint64(len(code)); pc++ {
-		switch op := OpCode(code[pc]); op {
+	for pc := uint64(0); pc < uint64(len(program.code)); pc++ {
+		switch op := OpCode(program.code[pc]); op {
 		case ADD:
 			program.addInstr(op, pc, opAdd, nil)
 		case SUB:
@@ -165,7 +174,7 @@ func AttachProgram(program *Program, code []byte) (err error) {
 			program.addInstr(op, pc, opGasLimit, nil)
 		case PUSH1, PUSH2, PUSH3, PUSH4, PUSH5, PUSH6, PUSH7, PUSH8, PUSH9, PUSH10, PUSH11, PUSH12, PUSH13, PUSH14, PUSH15, PUSH16, PUSH17, PUSH18, PUSH19, PUSH20, PUSH21, PUSH22, PUSH23, PUSH24, PUSH25, PUSH26, PUSH27, PUSH28, PUSH29, PUSH30, PUSH31, PUSH32:
 			size := uint64(op - PUSH1 + 1)
-			bytes := getData([]byte(code), new(big.Int).SetUint64(pc+1), new(big.Int).SetUint64(size))
+			bytes := getData([]byte(program.code), new(big.Int).SetUint64(pc+1), new(big.Int).SetUint64(size))
 
 			program.addInstr(op, pc, opPush, common.Bytes2Big(bytes))
 
