@@ -9,6 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+var pool *common.IntPool
+
+func init() {
+	pool = common.NewIntPool(100)
+}
+
 type instrFn func(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack)
 
 type instruction struct {
@@ -21,23 +27,26 @@ type instruction struct {
 func opAdd(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(U256(new(big.Int).Add(x, y)))
+	stack.push(U256(pool.Get().Add(x, y)))
+	pool.Put(x, y)
 }
 
 func opSub(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(U256(new(big.Int).Sub(x, y)))
+	stack.push(U256(pool.Get().Sub(x, y)))
+	pool.Put(x, y)
 }
 
 func opMul(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(U256(new(big.Int).Mul(x, y)))
+	stack.push(U256(pool.Get().Mul(x, y)))
+	pool.Put(x, y)
 }
 
 func opDiv(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x, y := stack.pop(), stack.pop()
 
 	if y.Cmp(common.Big0) != 0 {
@@ -46,21 +55,23 @@ func opDiv(data *big.Int, env Environment, context *Context, memory *Memory, sta
 
 	// pop result back on the stack
 	stack.push(U256(base))
+	pool.Put(x, y)
 }
 
 func opSdiv(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x, y := S256(stack.pop()), S256(stack.pop())
 
 	if y.Cmp(common.Big0) == 0 {
 		base.Set(common.Big0)
 	} else {
-		n := new(big.Int)
-		if new(big.Int).Mul(x, y).Cmp(common.Big0) < 0 {
+		n := pool.Get()
+		if pool.Get().Mul(x, y).Cmp(common.Big0) < 0 {
 			n.SetInt64(-1)
 		} else {
 			n.SetInt64(1)
 		}
+		pool.Put(n)
 
 		base.Div(x.Abs(x), y.Abs(y)).Mul(base, n)
 
@@ -68,10 +79,12 @@ func opSdiv(data *big.Int, env Environment, context *Context, memory *Memory, st
 	}
 
 	stack.push(base)
+
+	pool.Put(x, y)
 }
 
 func opMod(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x, y := stack.pop(), stack.pop()
 
 	if y.Cmp(common.Big0) == 0 {
@@ -83,16 +96,17 @@ func opMod(data *big.Int, env Environment, context *Context, memory *Memory, sta
 	U256(base)
 
 	stack.push(base)
+	pool.Put(x, y)
 }
 
 func opSmod(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x, y := S256(stack.pop()), S256(stack.pop())
 
 	if y.Cmp(common.Big0) == 0 {
 		base.Set(common.Big0)
 	} else {
-		n := new(big.Int)
+		n := pool.Get()
 		if x.Cmp(common.Big0) < 0 {
 			n.SetInt64(-1)
 		} else {
@@ -105,10 +119,11 @@ func opSmod(data *big.Int, env Environment, context *Context, memory *Memory, st
 	}
 
 	stack.push(base)
+	pool.Put(x, y)
 }
 
 func opExp(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x, y := stack.pop(), stack.pop()
 
 	base.Exp(x, y, Pow256)
@@ -116,6 +131,7 @@ func opExp(data *big.Int, env Environment, context *Context, memory *Memory, sta
 	U256(base)
 
 	stack.push(base)
+	pool.Put(x, y)
 }
 
 func opSignExtend(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -123,7 +139,7 @@ func opSignExtend(data *big.Int, env Environment, context *Context, memory *Memo
 	if back.Cmp(big.NewInt(31)) < 0 {
 		bit := uint(back.Uint64()*8 + 7)
 		num := stack.pop()
-		mask := new(big.Int).Lsh(common.Big1, bit)
+		mask := pool.Get().Lsh(common.Big1, bit)
 		mask.Sub(mask, common.Big1)
 		if common.BitTest(num, int(bit)) {
 			num.Or(num, mask.Not(mask))
@@ -134,11 +150,13 @@ func opSignExtend(data *big.Int, env Environment, context *Context, memory *Memo
 		num = U256(num)
 
 		stack.push(num)
+
+		pool.Put(mask)
 	}
 }
 
 func opNot(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(U256(new(big.Int).Not(stack.pop())))
+	stack.push(U256(pool.Get().Not(stack.pop())))
 }
 
 func opLt(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -150,6 +168,7 @@ func opLt(data *big.Int, env Environment, context *Context, memory *Memory, stac
 	} else {
 		stack.push(common.BigFalse)
 	}
+	pool.Put(x, y)
 }
 
 func opGt(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -161,6 +180,7 @@ func opGt(data *big.Int, env Environment, context *Context, memory *Memory, stac
 	} else {
 		stack.push(common.BigFalse)
 	}
+	pool.Put(x, y)
 }
 
 func opSlt(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -172,6 +192,7 @@ func opSlt(data *big.Int, env Environment, context *Context, memory *Memory, sta
 	} else {
 		stack.push(common.BigFalse)
 	}
+	pool.Put(x, y)
 }
 
 func opSgt(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -183,6 +204,7 @@ func opSgt(data *big.Int, env Environment, context *Context, memory *Memory, sta
 	} else {
 		stack.push(common.BigFalse)
 	}
+	pool.Put(x, y)
 }
 
 func opEq(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -194,6 +216,7 @@ func opEq(data *big.Int, env Environment, context *Context, memory *Memory, stac
 	} else {
 		stack.push(common.BigFalse)
 	}
+	pool.Put(x, y)
 }
 
 func opIszero(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -203,25 +226,32 @@ func opIszero(data *big.Int, env Environment, context *Context, memory *Memory, 
 	} else {
 		stack.push(common.BigTrue)
 	}
+	pool.Put(x)
 }
 
 func opAnd(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(new(big.Int).And(x, y))
+	stack.push(pool.Get().And(x, y))
+
+	pool.Put(x, y)
 }
 func opOr(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(new(big.Int).Or(x, y))
+	stack.push(pool.Get().Or(x, y))
+
+	pool.Put(x, y)
 }
 func opXor(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	x, y := stack.pop(), stack.pop()
 
-	stack.push(new(big.Int).Xor(x, y))
+	stack.push(pool.Get().Xor(x, y))
+
+	pool.Put(x, y)
 }
 func opByte(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	th, val := stack.pop(), stack.pop()
 
 	if th.Cmp(big.NewInt(32)) < 0 {
@@ -233,36 +263,40 @@ func opByte(data *big.Int, env Environment, context *Context, memory *Memory, st
 	}
 
 	stack.push(base)
+
+	pool.Put(th, val)
 }
 func opAddmod(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x := stack.pop()
 	y := stack.pop()
 	z := stack.pop()
 
 	if z.Cmp(Zero) > 0 {
-		add := new(big.Int).Add(x, y)
+		add := pool.Get().Add(x, y)
 		base.Mod(add, z)
 
 		base = U256(base)
 	}
 
 	stack.push(base)
+	pool.Put(x, y, z)
 }
 func opMulmod(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	base := new(big.Int)
+	base := pool.Get()
 	x := stack.pop()
 	y := stack.pop()
 	z := stack.pop()
 
 	if z.Cmp(Zero) > 0 {
-		mul := new(big.Int).Mul(x, y)
+		mul := pool.Get().Mul(x, y)
 		base.Mod(mul, z)
 
 		U256(base)
 	}
 
 	stack.push(base)
+	pool.Put(x, y, z)
 }
 
 func opSha3(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -270,6 +304,7 @@ func opSha3(data *big.Int, env Environment, context *Context, memory *Memory, st
 	hash := crypto.Sha3(memory.Get(offset.Int64(), size.Int64()))
 
 	stack.push(common.BigD(hash))
+	pool.Put(offset, size)
 }
 
 func opAddress(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -280,7 +315,8 @@ func opBalance(data *big.Int, env Environment, context *Context, memory *Memory,
 	addr := common.BigToAddress(stack.pop())
 	balance := env.State().GetBalance(addr)
 
-	stack.push(new(big.Int).Set(balance))
+	stack.push(pool.Get().Set(balance))
+	pool.Put(balance)
 }
 
 func opOrigin(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -292,7 +328,7 @@ func opCaller(data *big.Int, env Environment, context *Context, memory *Memory, 
 }
 
 func opCallValue(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(context.value))
+	stack.push(pool.Get().Set(context.value))
 }
 
 func opCalldataLoad(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -310,6 +346,7 @@ func opCalldataCopy(data *big.Int, env Environment, context *Context, memory *Me
 		l    = stack.pop()
 	)
 	memory.Set(mOff.Uint64(), l.Uint64(), getData(context.Input, cOff, l))
+	pool.Put(mOff, cOff, l)
 }
 
 func opExtCodeSize(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -332,6 +369,7 @@ func opCodeCopy(data *big.Int, env Environment, context *Context, memory *Memory
 	codeCopy := getData(context.Code, cOff, l)
 
 	memory.Set(mOff.Uint64(), l.Uint64(), codeCopy)
+	pool.Put(mOff, cOff, l)
 }
 
 func opExtCodeCopy(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -344,21 +382,23 @@ func opExtCodeCopy(data *big.Int, env Environment, context *Context, memory *Mem
 	codeCopy := getData(env.State().GetCode(addr), cOff, l)
 
 	memory.Set(mOff.Uint64(), l.Uint64(), codeCopy)
+	pool.Put(mOff, cOff, l)
 }
 
 func opGasprice(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(context.Price))
+	stack.push(pool.Get().Set(context.Price))
 }
 
 func opBlockhash(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	num := stack.pop()
 
-	n := new(big.Int).Sub(env.BlockNumber(), common.Big257)
+	n := pool.Get().Sub(env.BlockNumber(), common.Big257)
 	if num.Cmp(n) > 0 && num.Cmp(env.BlockNumber()) < 0 {
 		stack.push(env.GetHash(num.Uint64()).Big())
 	} else {
 		stack.push(common.Big0)
 	}
+	pool.Put(num)
 }
 
 func opCoinbase(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -366,7 +406,7 @@ func opCoinbase(data *big.Int, env Environment, context *Context, memory *Memory
 }
 
 func opTimestamp(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).SetUint64(env.Time()))
+	stack.push(pool.Get().SetUint64(env.Time()))
 }
 
 func opNumber(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -374,11 +414,11 @@ func opNumber(data *big.Int, env Environment, context *Context, memory *Memory, 
 }
 
 func opDifficulty(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(env.Difficulty()))
+	stack.push(pool.Get().Set(env.Difficulty()))
 }
 
 func opGasLimit(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(env.GasLimit()))
+	stack.push(pool.Get().Set(env.GasLimit()))
 }
 
 func opPop(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -386,7 +426,7 @@ func opPop(data *big.Int, env Environment, context *Context, memory *Memory, sta
 }
 
 func opPush(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(data))
+	stack.push(pool.Get().Set(data))
 }
 
 func opDup(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -408,23 +448,29 @@ func opLog(data *big.Int, env Environment, context *Context, memory *Memory, sta
 	d := memory.Get(mStart.Int64(), mSize.Int64())
 	log := state.NewLog(context.Address(), topics, d, env.BlockNumber().Uint64())
 	env.AddLog(log)
+
+	pool.Put(mStart, mSize)
 }
 
 func opMload(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	offset := stack.pop()
 	val := common.BigD(memory.Get(offset.Int64(), 32))
 	stack.push(val)
+	pool.Put(offset)
 }
 
 func opMstore(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
 	// pop value of the stack
 	mStart, val := stack.pop(), stack.pop()
 	memory.Set(mStart.Uint64(), 32, common.BigToBytes(val, 256))
+
+	pool.Put(mStart, val)
 }
 
 func opMstore8(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	off, val := stack.pop().Int64(), stack.pop().Int64()
-	memory.store[off] = byte(val & 0xff)
+	off, val := stack.pop(), stack.pop()
+	memory.store[off.Int64()] = byte(val.Int64() & 0xff)
+	pool.Put(off, val)
 }
 
 func opSload(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -456,7 +502,7 @@ func opMsize(data *big.Int, env Environment, context *Context, memory *Memory, s
 }
 
 func opGas(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
-	stack.push(new(big.Int).Set(context.Gas))
+	stack.push(pool.Get().Set(context.Gas))
 }
 
 func opCreate(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -464,7 +510,7 @@ func opCreate(data *big.Int, env Environment, context *Context, memory *Memory, 
 		value        = stack.pop()
 		offset, size = stack.pop(), stack.pop()
 		input        = memory.Get(offset.Int64(), size.Int64())
-		gas          = new(big.Int).Set(context.Gas)
+		gas          = pool.Get().Set(context.Gas)
 		addr         common.Address
 	)
 
@@ -485,6 +531,7 @@ func opCreate(data *big.Int, env Environment, context *Context, memory *Memory, 
 		stack.push(addr.Big())
 
 	}
+	pool.Put(value, offset, size, gas)
 }
 
 func opCall(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -516,6 +563,7 @@ func opCall(data *big.Int, env Environment, context *Context, memory *Memory, st
 
 		memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
+	pool.Put(gas, addr, value, inOffset, inSize, retOffset, retSize)
 }
 
 func opCallCode(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {
@@ -547,6 +595,7 @@ func opCallCode(data *big.Int, env Environment, context *Context, memory *Memory
 
 		memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
+	pool.Put(gas, addr, value, inOffset, inSize, retOffset, retSize)
 }
 
 func opReturn(data *big.Int, env Environment, context *Context, memory *Memory, stack *stack) {}

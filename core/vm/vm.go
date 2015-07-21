@@ -809,18 +809,19 @@ func calculateGasAndSize(env Environment, context *Context, caller ContextRef, o
 
 		if newMemSize.Cmp(u256(int64(mem.Len()))) > 0 {
 			oldSize := toWordSize(big.NewInt(int64(mem.Len())))
-			pow := new(big.Int).Exp(oldSize, common.Big2, Zero)
-			linCoef := new(big.Int).Mul(oldSize, params.MemoryGas)
-			quadCoef := new(big.Int).Div(pow, params.QuadCoeffDiv)
-			oldTotalFee := new(big.Int).Add(linCoef, quadCoef)
+			pow := pool.Get().Exp(oldSize, common.Big2, Zero)
+			linCoef := pool.Get().Mul(oldSize, params.MemoryGas)
+			quadCoef := pool.Get().Div(pow, params.QuadCoeffDiv)
+			oldTotalFee := pool.Get().Add(linCoef, quadCoef)
 
 			pow.Exp(newMemSizeWords, common.Big2, Zero)
-			linCoef = new(big.Int).Mul(newMemSizeWords, params.MemoryGas)
-			quadCoef = new(big.Int).Div(pow, params.QuadCoeffDiv)
-			newTotalFee := new(big.Int).Add(linCoef, quadCoef)
+			linCoef = pool.Get().Mul(newMemSizeWords, params.MemoryGas)
+			quadCoef = pool.Get().Div(pow, params.QuadCoeffDiv)
+			newTotalFee := pool.Get().Add(linCoef, quadCoef)
 
-			fee := new(big.Int).Sub(newTotalFee, oldTotalFee)
+			fee := pool.Get().Sub(newTotalFee, oldTotalFee)
 			gas.Add(gas, fee)
+			pool.Put(oldSize, pow, linCoef, quadCoef, oldTotalFee, quadCoef, newTotalFee, fee)
 		}
 	}
 

@@ -273,6 +273,7 @@ func RunProgram(program *Program, env Environment, context *Context, input []byt
 		}
 		// Resize the memory calculated previously
 		mem.Resize(newMemSize.Uint64())
+		pool.Put(newMemSize)
 
 		switch instr.op {
 		case JUMP:
