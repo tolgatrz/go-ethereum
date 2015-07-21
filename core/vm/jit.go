@@ -48,8 +48,6 @@ func LinkProgram(addr common.Hash, program *Program) {
 type Program struct {
 	status int32 // status should be accessed atomically
 
-	stack   *stack
-	mem     *Memory
 	context *Context
 
 	instructions []instruction
@@ -225,15 +223,13 @@ func AttachProgram(program *Program, code []byte) (err error) {
 }
 
 func RunProgram(program *Program, env Environment, context *Context, input []byte) ([]byte, error) {
-	program.mem = NewMemory()
-	program.stack = newstack()
 	context.Input = input
 
 	var (
 		caller      = context.caller
 		statedb     = env.State()
-		mem         = program.mem
-		stack       = program.stack
+		mem         = NewMemory()
+		stack       = newstack()
 		pc      int = 0
 
 		jump = func(to *big.Int) error {
