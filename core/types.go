@@ -64,6 +64,13 @@ type Processor interface {
 	Process(block *types.Block, statedb *state.StateDB, cfg vm.Config) (types.Receipts, vm.Logs, *big.Int, error)
 }
 
+// Finiliser is an interface which finilises blocks.
+//
+// Finilise attempts to finilise a block by checking its external state.
+type Finiliser interface {
+	Finilise(block *types.Block) error
+}
+
 // Backend is an interface defining the basic functionality for an operable node
 // with all the functionality to be a functional, valid Ethereum operator.
 //

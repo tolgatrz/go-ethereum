@@ -68,6 +68,7 @@ type BlockGen struct {
 	txs      []*types.Transaction
 	receipts []*types.Receipt
 	uncles   []*types.Header
+	Bc       *BlockChain
 }
 
 // SetCoinbase sets the coinbase of the generated block.
@@ -101,7 +102,7 @@ func (b *BlockGen) AddTx(tx *types.Transaction) {
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.StartRecord(tx.Hash(), common.Hash{}, len(b.txs))
-	receipt, _, _, err := ApplyTransaction(MakeChainConfig(), nil, b.gasPool, b.statedb, b.header, tx, b.header.GasUsed, vm.Config{})
+	receipt, _, _, err := ApplyTransaction(MakeChainConfig(), b.Bc, b.gasPool, b.statedb, b.header, tx, b.header.GasUsed, vm.Config{})
 	if err != nil {
 		panic(err)
 	}
