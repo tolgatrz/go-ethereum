@@ -26,6 +26,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
@@ -478,4 +479,50 @@ func updateString(trie *Trie, k, v string) {
 
 func deleteString(trie *Trie, k string) {
 	trie.Delete([]byte(k))
+}
+
+func BenchmarkStdMir(b *testing.B) {
+	for j := 0; j < b.N; j++ {
+		var (
+			minCount = 32
+			maxCount = 32
+			rounds   = 1000
+			trie     = newEmpty()
+			seed     common.Hash
+		)
+		for i := 0; i < rounds; i++ {
+			seed = crypto.Sha3Hash(seed[:])
+			key := seed[:minCount+int(seed[31])%(maxCount+1-minCount)]
+
+			trie.Update(key, key)
+		}
+		trie.Commit()
+	}
+}
+
+func BenchmarkStdRan(b *testing.B) {
+	for j := 0; j < b.N; j++ {
+		var (
+			minCount = 32
+			maxCount = 32
+			rounds   = 1000
+			trie     = newEmpty()
+			seed     common.Hash
+		)
+		for i := 0; i < rounds; i++ {
+			seed = crypto.Sha3Hash(seed[:])
+			key := seed[:minCount+int(seed[31])%(maxCount+1-minCount)]
+
+			seed = crypto.Sha3Hash(seed[:])
+			var val []byte
+			if int(seed[0])%2 > 0 {
+				val = []byte{seed[31]}
+			} else {
+				val = seed[:]
+			}
+
+			trie.Update(key, val)
+		}
+		trie.Commit()
+	}
 }
