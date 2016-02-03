@@ -46,6 +46,10 @@ type Validator interface {
 	ValidateState(block, parent *types.Block, state *state.StateDB, receipts types.Receipts, usedGas *big.Int) error
 }
 
+type ProcOpts struct {
+	Debug bool
+}
+
 // Processor is an interface for processing blocks using a given initial state.
 //
 // Process takes the block to be processed and the statedb upon which the
@@ -53,7 +57,7 @@ type Validator interface {
 // of gas used in the process and return an error if any of the internal rules
 // failed.
 type Processor interface {
-	Process(block *types.Block, statedb *state.StateDB) (types.Receipts, vm.Logs, *big.Int, error)
+	Process(block *types.Block, statedb *state.StateDB, cfg *vm.Config) (types.Receipts, vm.Logs, *big.Int, error)
 }
 
 // Backend is an interface defining the basic functionality for an operable node

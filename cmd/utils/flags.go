@@ -199,11 +199,6 @@ var (
 		Value: "",
 	}
 
-	// vm flags
-	VMDebugFlag = cli.BoolFlag{
-		Name:  "vmdebug",
-		Usage: "Virtual Machine debug output",
-	}
 	VMForceJitFlag = cli.BoolFlag{
 		Name:  "forcejit",
 		Usage: "Force the JIT VM to take precedence",
@@ -696,9 +691,6 @@ func MakeSystemNode(name, version string, extra []byte, ctx *cli.Context) *node.
 		if !ctx.GlobalIsSet(WhisperEnabledFlag.Name) {
 			shhEnable = true
 		}
-		if !ctx.GlobalIsSet(VMDebugFlag.Name) {
-			vm.Debug = true
-		}
 		ethConf.PowTest = true
 	}
 	// Assemble and return the protocol stack
@@ -739,9 +731,6 @@ func SetupVM(ctx *cli.Context) {
 	vm.EnableJit = ctx.GlobalBool(VMEnableJitFlag.Name)
 	vm.ForceJit = ctx.GlobalBool(VMForceJitFlag.Name)
 	vm.SetJITCacheSize(ctx.GlobalInt(VMJitCacheFlag.Name))
-	if ctx.GlobalIsSet(VMDebugFlag.Name) {
-		vm.Debug = ctx.GlobalBool(VMDebugFlag.Name)
-	}
 }
 
 // MakeChain creates a chain manager from set command line flags.

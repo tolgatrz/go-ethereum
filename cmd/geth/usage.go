@@ -141,7 +141,6 @@ var AppHelpFlagGroups = []flagGroup{
 	{
 		Name: "VIRTUAL MACHINE",
 		Flags: []cli.Flag{
-			utils.VMDebugFlag,
 			utils.VMEnableJitFlag,
 			utils.VMForceJitFlag,
 			utils.VMJitCacheFlag,
