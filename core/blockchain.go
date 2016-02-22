@@ -1123,8 +1123,6 @@ func (self *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 
 		nonceChecked = make([]bool, len(chain))
 	)
-	go BalanceBlockTxsWork(self.balancer, chain)
-
 	// Start the parallel nonce verifier.
 	nonceResults := BalanceBlockWork(self.balancer, chain, self.pow)
 

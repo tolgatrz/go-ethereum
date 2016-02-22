@@ -39,12 +39,6 @@ func BalanceTxWork(b *balancer.Balancer, txs types.Transactions) {
 	}()
 }
 
-func BalanceBlockTxsWork(b *balancer.Balancer, blocks []*types.Block) {
-	for _, block := range blocks {
-		BalanceTxWork(b, block.Transactions())
-	}
-}
-
 func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.PoW) chan nonceResult {
 	if len(blocks) == 0 {
 		return nil
@@ -54,11 +48,11 @@ func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.P
 		nonceResults = make(chan nonceResult, len(blocks))
 		errch        = make(chan error, len(blocks))
 	)
-	for i := 0; i < len(blocks); i++ {
+	for i, block := range blocks {
 		i := i
 		task := balancer.NewTask(func() error {
-			valid := checker.Verify(blocks[i])
-			for _, u := range blocks[i].Uncles() {
+			valid := checker.Verify(block)
+			for _, u := range block.Uncles() {
 				if !checker.Verify(types.NewBlockWithHeader(u)) {
 					valid = false
 					break
@@ -67,8 +61,9 @@ func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.P
 			nonceResults <- nonceResult{i, valid}
 			return nil
 		}, errch)
-
 		b.Push(task)
+
+		BalanceTxWork(b, block.Transactions())
 	}
 
 	// we aren't at all interested in the errors

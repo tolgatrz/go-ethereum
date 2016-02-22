@@ -73,7 +73,6 @@ func (p *Pool) Pop() interface{} {
 type Balancer struct {
 	pool Pool
 	done chan *Worker
-
 	work chan Task
 }
 
