@@ -1,8 +1,6 @@
 package core
 
 import (
-	"math"
-
 	"github.com/ethereum/go-ethereum/balancer"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/pow"
@@ -12,6 +10,79 @@ type nonceResult struct {
 	index int
 	valid bool
 }
+
+func BalanceTxWork(b *balancer.Balancer, txs types.Transactions) {
+	if len(txs) == 0 {
+		return
+	}
+
+	errch := make(chan error, len(txs))
+
+	for i := 0; i < len(txs); i++ {
+		i := i
+		// create new tasks
+		task := balancer.NewTask(func() error {
+			txs[i].FromFrontier()
+			return nil
+		}, errch)
+
+		b.Push(task)
+	}
+
+	// we aren't at all interested in the errors
+	// since we handle errors ourself.
+	go func() {
+		for i := 0; i < cap(errch); i++ {
+			<-errch
+		}
+		close(errch)
+	}()
+}
+
+func BalanceBlockTxsWork(b *balancer.Balancer, blocks []*types.Block) {
+	for _, block := range blocks {
+		BalanceTxWork(b, block.Transactions())
+	}
+}
+
+func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.PoW) chan nonceResult {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	var (
+		nonceResults = make(chan nonceResult, len(blocks))
+		errch        = make(chan error, len(blocks))
+	)
+	for i := 0; i < len(blocks); i++ {
+		i := i
+		task := balancer.NewTask(func() error {
+			valid := checker.Verify(blocks[i])
+			for _, u := range blocks[i].Uncles() {
+				if !checker.Verify(types.NewBlockWithHeader(u)) {
+					valid = false
+					break
+				}
+			}
+			nonceResults <- nonceResult{i, valid}
+			return nil
+		}, errch)
+
+		b.Push(task)
+	}
+
+	// we aren't at all interested in the errors
+	// since we handle errors ourself.
+	go func() {
+		for i := 0; i < cap(errch); i++ {
+			<-errch
+		}
+		close(errch)
+	}()
+	return nonceResults
+}
+
+/*
 
 const taskCount = 20
 
@@ -51,7 +122,6 @@ func BalanceTxWork(b *balancer.Balancer, txs types.Transactions) {
 		close(errch)
 	}()
 }
-
 func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.PoW) chan nonceResult {
 	workSize := len(blocks) / taskCount
 	if workSize == 0 {
@@ -96,3 +166,4 @@ func BalanceBlockWork(b *balancer.Balancer, blocks []*types.Block, checker pow.P
 
 	return nonceResults
 }
+*/

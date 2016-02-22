@@ -89,7 +89,7 @@ func New(poolSize int) *Balancer {
 	// fill the pool with the given pool size
 	for i := 0; i < poolSize; i++ {
 		// create new worker
-		worker := &Worker{id: i, tasks: make(chan Task, 100)}
+		worker := &Worker{id: i, tasks: make(chan Task, 5000)}
 		// spawn worker process
 		go func(i int) {
 			worker.work(balancer.done)
