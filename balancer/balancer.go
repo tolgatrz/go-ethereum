@@ -21,10 +21,7 @@ func NewTask(fn func() error, c chan error) Task {
 // Worker is a worker that will take one it's assigned tasks
 // and execute it
 type Worker struct {
-	id      int       // worker id
-	tasks   chan Task // tasks to do (buffered)
-	pending int       // count of pending work
-	index   int       // index in the heap
+	id int // worker id
 }
 
 // work will take the oldest task and execute the function and
@@ -57,7 +54,7 @@ func New(poolSize int) *Balancer {
 	// fill the pool with the given pool size
 	for i := 0; i < poolSize; i++ {
 		// create new worker
-		worker := &Worker{id: i, tasks: make(chan Task, 100)}
+		worker := &Worker{id: i}
 		// spawn worker process
 		go func(i int) {
 			worker.work(balancer.work)

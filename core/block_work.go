@@ -2,6 +2,7 @@ package core
 
 import (
 	"math"
+	"runtime"
 
 	"github.com/ethereum/go-ethereum/balancer"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,7 +14,7 @@ type nonceResult struct {
 	valid bool
 }
 
-const taskCount = 20
+var taskCount = runtime.GOMAXPROCS(0)
 
 func BalanceTxWork(b *balancer.Balancer, txs types.Transactions) {
 	if len(txs) == 0 {
