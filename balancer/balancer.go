@@ -79,8 +79,8 @@ type Balancer struct {
 // New returns a new load balancer
 func New(poolSize int) *Balancer {
 	balancer := &Balancer{
-		done: make(chan *Worker),
-		work: make(chan Task),
+		done: make(chan *Worker, poolSize),
+		work: make(chan Task, poolSize*10),
 		pool: make(Pool, 0, poolSize),
 	}
 	heap.Init(&balancer.pool)
@@ -103,16 +103,16 @@ func New(poolSize int) *Balancer {
 
 // Push pushes the given tasks in to the work channel.
 func (b *Balancer) Push(work Task) {
-	go func() { b.work <- work }()
+	b.work <- work
 }
 
 func (b *Balancer) balance(work chan Task) {
 	for {
 		select {
-		case w := <-b.done: // worker is done
-			b.completed(w) // handle worker
 		case task := <-work: // get task
 			b.dispatch(task) // dispatch the tasks
+		case w := <-b.done: // worker is done
+			b.completed(w) // handle worker
 		}
 	}
 }
