@@ -32,11 +32,10 @@ type Worker struct {
 
 // work will take the oldest task and execute the function and
 // yield the result back in to the return error channel.
-func (w *Worker) work(done chan *Worker) {
-	for {
-		task := <-w.tasks   // get task...
+func (w *Worker) work(tasks chan Task) {
+	for task := range tasks {
 		task.c <- task.fn() // ...execute the task
-		done <- w           // we're done
+		//done <- w           // we're done
 	}
 }
 
@@ -89,14 +88,13 @@ func New(poolSize int) *Balancer {
 	for i := 0; i < poolSize; i++ {
 		// create new worker
 		worker := &Worker{id: i, tasks: make(chan Task, 5000)}
-		// spawn worker process
-		go func(i int) {
-			worker.work(balancer.done)
-		}(i)
+		// add worker to pool
 		heap.Push(&balancer.pool, worker)
+		// spawn worker process
+		go worker.work(balancer.work)
 	}
 	// spawn own balancer task
-	go balancer.balance(balancer.work)
+	//go balancer.balance(balancer.work)
 
 	return balancer
 }
