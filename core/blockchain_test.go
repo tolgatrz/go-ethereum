@@ -25,6 +25,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/ethash"
 	"github.com/ethereum/go-ethereum/common"
@@ -1004,5 +1005,64 @@ func TestLogReorgs(t *testing.T) {
 	ev := <-subs.Chan()
 	if len(ev.Data.(RemovedLogsEvent).Logs) == 0 {
 		t.Error("expected logs")
+	}
+}
+
+func TestReorgSideEvent(t *testing.T) {
+	var (
+		db, _   = ethdb.NewMemDatabase()
+		key1, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		addr1   = crypto.PubkeyToAddress(key1.PublicKey)
+		genesis = WriteGenesisBlockForTesting(db, GenesisAccount{addr1, big.NewInt(10000000000000)})
+	)
+
+	evmux := &event.TypeMux{}
+	blockchain, _ := NewBlockChain(db, FakePow{}, evmux)
+
+	chain, _ := GenerateChain(genesis, db, 3, func(i int, gen *BlockGen) {})
+	if _, err := blockchain.InsertChain(chain); err != nil {
+		t.Fatalf("failed to insert chain: %v", err)
+	}
+
+	replacementBlocks, _ := GenerateChain(genesis, db, 4, func(i int, gen *BlockGen) {
+		tx, err := types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), big.NewInt(1000000), new(big.Int), nil).SignECDSA(key1)
+		if err != nil {
+			t.Fatalf("failed to create tx: %v", err)
+		}
+		gen.AddTx(tx)
+	})
+
+	subs := evmux.Subscribe(ChainSideEvent{})
+	if _, err := blockchain.InsertChain(replacementBlocks); err != nil {
+		t.Fatalf("failed to insert chain: %v", err)
+	}
+
+	expectedSideHashes := map[common.Hash]bool{
+		replacementBlocks[0].Hash(): true,
+		replacementBlocks[1].Hash(): true,
+		replacementBlocks[2].Hash(): true,
+		chain[0].Hash():             true,
+		chain[1].Hash():             true,
+		chain[2].Hash():             true,
+	}
+
+	i := 0
+
+done:
+	for {
+		select {
+		case ev := <-subs.Chan():
+			block := ev.Data.(ChainSideEvent).Block
+			if _, ok := expectedSideHashes[block.Hash()]; !ok {
+				t.Errorf("%d: didn't expect %x to be in side chain", i, block.Hash())
+			}
+			i++
+
+			if i == len(expectedSideHashes) {
+				break done
+			}
+		case <-time.After(1 * time.Second):
+			t.Fatal("timer expired")
+		}
 	}
 }
