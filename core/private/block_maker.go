@@ -2,7 +2,6 @@ package core
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -63,6 +62,8 @@ const blockTime = 5 * time.Second
 func (bm *BlockMaker) update() {
 	eventSub := bm.mux.Subscribe(core.ChainHeadEvent{})
 	eventCh := eventSub.Chan()
+
+	lastHeader := bm.blockchain.CurrentHeader()
 	for {
 		select {
 		case event, ok := <-eventCh:
@@ -74,7 +75,8 @@ func (bm *BlockMaker) update() {
 
 			switch ev := event.Data.(type) {
 			case core.ChainHeadEvent:
-				fmt.Println(ev)
+				if ev.Block.Hash() != lastHeader.Hash && ev.Block.Number().Cmp(lastHeader.Number) > 0 {
+				}
 			}
 		case <-bm.quit:
 			return
