@@ -1,9 +1,9 @@
 package core
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -28,13 +28,14 @@ func TestCreation(t *testing.T) {
 		code               = common.Hex2Bytes(MakerCode)
 		chainConfig        = &core.ChainConfig{HomesteadBlock: new(big.Int)}
 		//gasLimit          = big.NewInt(260000)
+		makerAddress = crypto.CreateAddress(addr1, 0)
 	)
 	defer db.Close()
 
 	genesis := core.WriteGenesisBlockForTesting(db,
-		core.GenesisAccount{addr1, big.NewInt(1000000)},
-		core.GenesisAccount{addr2, big.NewInt(1000000)},
-		core.GenesisAccount{addr3, big.NewInt(1000000)},
+		core.GenesisAccount{addr1, big.NewInt(1000000), nil},
+		core.GenesisAccount{addr2, big.NewInt(1000000), nil},
+		core.GenesisAccount{addr3, big.NewInt(1000000), nil},
 	)
 
 	evmux := &event.TypeMux{}
@@ -45,10 +46,8 @@ func TestCreation(t *testing.T) {
 
 	makerStart := blockchain.CurrentBlock().NumberU64() + 1
 	t.Logf("initial round: maker genesis starts at %d\n", makerStart)
-	var makerAddress common.Address
 	chain, _ := core.GenerateChain(genesis, db, 1, func(i int, gen *core.BlockGen) {
 		gen.Bc = blockchain
-		makerAddress = crypto.CreateAddress(addr1, gen.TxNonce(addr1))
 		tx, _ := types.NewContractCreation(gen.TxNonce(addr1), new(big.Int), big.NewInt(1000000), new(big.Int), code).SignECDSA(key1)
 		addr1Nonce++
 
@@ -63,7 +62,7 @@ func TestCreation(t *testing.T) {
 
 	maker := NewBlockMaker(chainConfig, makerAddress, blockchain, db, &event.TypeMux{})
 
-	fmt.Println(maker.abi.Methods["start"])
+	t.Log(maker.abi.Methods["start"])
 
 	var contractStart *big.Int
 	maker.abi.Unpack(&contractStart, "start", maker.call("start"))
@@ -110,8 +109,10 @@ func TestCreation(t *testing.T) {
 		return
 	}
 
+	// manual verification of the correct block
 	block, _ = maker.Create(nil)
 	if winnerHash != block.ParentHash() {
 		t.Errorf("expected %x to be canonical, got %x", winnerHash, block.ParentHash())
 	}
+	time.Sleep(2 * time.Second)
 }

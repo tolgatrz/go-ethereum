@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/logger"
 	"github.com/ethereum/go-ethereum/logger/glog"
 	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/pow"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/hashicorp/golang-lru"
@@ -104,7 +103,7 @@ type BlockChain struct {
 	procInterrupt int32          // interrupt signaler for block processing
 	wg            sync.WaitGroup // chain processing wait group for shutting down
 
-	pow       pow.PoW
+	finaliser Finaliser
 	processor Processor // block processor interface
 	validator Validator // block and state validator interface
 }
@@ -112,7 +111,7 @@ type BlockChain struct {
 // NewBlockChain returns a fully initialised block chain using information
 // available in the database. It initialiser the default Ethereum Validator and
 // Processor.
-func NewBlockChain(chainDb ethdb.Database, config *ChainConfig, pow pow.PoW, mux *event.TypeMux) (*BlockChain, error) {
+func NewBlockChain(chainDb ethdb.Database, config *ChainConfig, finaliser Finaliser, mux *event.TypeMux) (*BlockChain, error) {
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
@@ -127,9 +126,9 @@ func NewBlockChain(chainDb ethdb.Database, config *ChainConfig, pow pow.PoW, mux
 		bodyRLPCache: bodyRLPCache,
 		blockCache:   blockCache,
 		futureBlocks: futureBlocks,
-		pow:          pow,
+		finaliser:    finaliser,
 	}
-	bc.SetValidator(NewBlockValidator(config, bc, pow))
+	bc.SetValidator(NewBlockValidator(config, bc, finaliser))
 	bc.SetProcessor(NewStateProcessor(config, bc))
 
 	gv := func() HeaderValidator { return bc.Validator() }
@@ -344,7 +343,7 @@ func (self *BlockChain) Processor() Processor {
 }
 
 // AuxValidator returns the auxiliary validator (Proof of work atm)
-func (self *BlockChain) AuxValidator() pow.PoW { return self.pow }
+func (self *BlockChain) AuxValidator() Finaliser { return self.finaliser }
 
 // State returns a new mutable state based on the current HEAD block.
 func (self *BlockChain) State() (*state.StateDB, error) {
@@ -831,7 +830,7 @@ func (self *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 	)
 
 	// Start the parallel nonce verifier.
-	nonceAbort, nonceResults := verifyNoncesFromBlocks(self.pow, chain)
+	nonceAbort, nonceResults := verifyNoncesFromBlocks(self.finaliser, chain)
 	defer close(nonceAbort)
 
 	txcount := 0

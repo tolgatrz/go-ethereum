@@ -32,7 +32,7 @@ type nonceCheckResult struct {
 // verifyNoncesFromHeaders starts a concurrent header nonce verification,
 // returning a quit channel to abort the operations and a results channel
 // to retrieve the async verifications.
-func verifyNoncesFromHeaders(checker pow.PoW, headers []*types.Header) (chan<- struct{}, <-chan nonceCheckResult) {
+func verifyNoncesFromHeaders(checker Finaliser, headers []*types.Header) (chan<- struct{}, <-chan nonceCheckResult) {
 	items := make([]pow.Block, len(headers))
 	for i, header := range headers {
 		items[i] = types.NewBlockWithHeader(header)
@@ -43,7 +43,7 @@ func verifyNoncesFromHeaders(checker pow.PoW, headers []*types.Header) (chan<- s
 // verifyNoncesFromBlocks starts a concurrent block nonce verification,
 // returning a quit channel to abort the operations and a results channel
 // to retrieve the async verifications.
-func verifyNoncesFromBlocks(checker pow.PoW, blocks []*types.Block) (chan<- struct{}, <-chan nonceCheckResult) {
+func verifyNoncesFromBlocks(checker Finaliser, blocks []*types.Block) (chan<- struct{}, <-chan nonceCheckResult) {
 	items := make([]pow.Block, len(blocks))
 	for i, block := range blocks {
 		items[i] = block
@@ -53,7 +53,7 @@ func verifyNoncesFromBlocks(checker pow.PoW, blocks []*types.Block) (chan<- stru
 
 // verifyNonces starts a concurrent nonce verification, returning a quit channel
 // to abort the operations and a results channel to retrieve the async checks.
-func verifyNonces(checker pow.PoW, items []pow.Block) (chan<- struct{}, <-chan nonceCheckResult) {
+func verifyNonces(checker Finaliser, items []pow.Block) (chan<- struct{}, <-chan nonceCheckResult) {
 	// Spawn as many workers as allowed threads
 	workers := runtime.GOMAXPROCS(0)
 	if len(items) < workers {

@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/logger/glog"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/pow"
 	"gopkg.in/fatih/set.v0"
 )
 
@@ -41,17 +40,17 @@ var (
 //
 // BlockValidator implements Validator.
 type BlockValidator struct {
-	config *ChainConfig // Chain configuration options
-	bc     *BlockChain  // Canonical block chain
-	Pow    pow.PoW      // Proof of work used for validating
+	config    *ChainConfig // Chain configuration options
+	bc        *BlockChain  // Canonical block chain
+	finaliser Finaliser
 }
 
 // NewBlockValidator returns a new block validator which is safe for re-use
-func NewBlockValidator(config *ChainConfig, blockchain *BlockChain, pow pow.PoW) *BlockValidator {
+func NewBlockValidator(config *ChainConfig, blockchain *BlockChain, finaliser Finaliser) *BlockValidator {
 	validator := &BlockValidator{
-		config: config,
-		Pow:    pow,
-		bc:     blockchain,
+		config:    config,
+		finaliser: finaliser,
+		bc:        blockchain,
 	}
 	return validator
 }
@@ -59,7 +58,7 @@ func NewBlockValidator(config *ChainConfig, blockchain *BlockChain, pow pow.PoW)
 // ValidateBlock validates the given block's header and uncles and verifies the
 // the block header's transaction and uncle roots.
 //
-// ValidateBlock does not validate the header's pow. The pow work validated
+// ValidateBlock does not validate the header's finaliser. The finaliser work validated
 // separately so we can process them in parallel.
 //
 // ValidateBlock also validates and makes sure that any previous state (or present)
@@ -82,7 +81,7 @@ func (v *BlockValidator) ValidateBlock(block *types.Block) error {
 
 	header := block.Header()
 	// validate the block header
-	if err := ValidateHeader(v.config, v.Pow, header, parent.Header(), false, false); err != nil {
+	if err := ValidateHeader(v.config, v.finaliser, header, parent.Header(), false, false); err != nil {
 		return err
 	}
 	// verify the uncles are correctly rewarded
@@ -177,7 +176,7 @@ func (v *BlockValidator) VerifyUncles(block, parent *types.Block) error {
 			return UncleError("uncle[%d](%x)'s parent is not ancestor (%x)", i, hash[:4], uncle.ParentHash[0:4])
 		}
 
-		if err := ValidateHeader(v.config, v.Pow, uncle, ancestors[uncle.ParentHash].Header(), true, true); err != nil {
+		if err := ValidateHeader(v.config, v.finaliser, uncle, ancestors[uncle.ParentHash].Header(), true, true); err != nil {
 			return ValidationError(fmt.Sprintf("uncle[%d](%x) header invalid: %v", i, hash[:4], err))
 		}
 	}
@@ -185,10 +184,10 @@ func (v *BlockValidator) VerifyUncles(block, parent *types.Block) error {
 	return nil
 }
 
-// ValidateHeader validates the given header and, depending on the pow arg,
+// ValidateHeader validates the given header and, depending on the finaliser arg,
 // checks the proof of work of the given header. Returns an error if the
 // validation failed.
-func (v *BlockValidator) ValidateHeader(header, parent *types.Header, checkPow bool) error {
+func (v *BlockValidator) ValidateHeader(header, parent *types.Header, checkfinaliser bool) error {
 	// Short circuit if the parent is missing.
 	if parent == nil {
 		return ParentError(header.ParentHash)
@@ -197,13 +196,13 @@ func (v *BlockValidator) ValidateHeader(header, parent *types.Header, checkPow b
 	if v.bc.HasHeader(header.Hash()) {
 		return nil
 	}
-	return ValidateHeader(v.config, v.Pow, header, parent, checkPow, false)
+	return ValidateHeader(v.config, v.finaliser, header, parent, checkfinaliser, false)
 }
 
 // Validates a header. Returns an error if the header is invalid.
 //
 // See YP section 4.3.4. "Block Header Validity"
-func ValidateHeader(config *ChainConfig, pow pow.PoW, header *types.Header, parent *types.Header, checkPow, uncle bool) error {
+func ValidateHeader(config *ChainConfig, finaliser Finaliser, header *types.Header, parent *types.Header, checkfinaliser, uncle bool) error {
 	if big.NewInt(int64(len(header.Extra))).Cmp(params.MaximumExtraDataSize) == 1 {
 		return fmt.Errorf("Header extra data too long (%d)", len(header.Extra))
 	}
@@ -241,9 +240,9 @@ func ValidateHeader(config *ChainConfig, pow pow.PoW, header *types.Header, pare
 		return BlockNumberErr
 	}
 
-	if checkPow {
+	if checkfinaliser {
 		// Verify the nonce of the header. Return an error if it's not valid
-		if !pow.Verify(types.NewBlockWithHeader(header)) {
+		if !finaliser.Verify(types.NewBlockWithHeader(header)) {
 			return &BlockNonceErr{header.Number, header.Hash(), header.Nonce.Uint64()}
 		}
 	}

@@ -68,7 +68,7 @@ func WriteGenesisBlock(chainDb ethdb.Database, reader io.Reader) (*types.Block, 
 	for addr, account := range genesis.Alloc {
 		address := common.HexToAddress(addr)
 		statedb.AddBalance(address, common.String2Big(account.Balance))
-		statedb.SetCode(address, common.Hex2Bytes(account.Code))
+		statedb.SetCode(address, common.FromHex(account.Code))
 		for key, value := range account.Storage {
 			statedb.SetState(address, common.HexToHash(key), common.HexToHash(value))
 		}
@@ -143,6 +143,7 @@ func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big
 type GenesisAccount struct {
 	Address common.Address
 	Balance *big.Int
+	Code    []byte
 }
 
 func WriteGenesisBlockForTesting(db ethdb.Database, accounts ...GenesisAccount) *types.Block {
@@ -151,7 +152,7 @@ func WriteGenesisBlockForTesting(db ethdb.Database, accounts ...GenesisAccount) 
 		if i != 0 {
 			accountJson += ","
 		}
-		accountJson += fmt.Sprintf(`"0x%x":{"balance":"0x%x"}`, account.Address, account.Balance.Bytes())
+		accountJson += fmt.Sprintf(`"0x%x":{"balance":"0x%x","code":"0x%x"}`, account.Address, account.Balance.Bytes(), account.Code)
 	}
 	accountJson += "}"
 

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/logger/glog"
+	"github.com/ethereum/go-ethereum/pow"
 )
 
 type BlockMaker struct {
@@ -43,8 +44,8 @@ func NewBlockMaker(chainConfig *core.ChainConfig, addr common.Address, bc *core.
 
 	bm := &BlockMaker{
 		chainConfig: chainConfig,
-		blockchain:  bc,
 		db:          db,
+		blockchain:  bc,
 		address:     addr,
 		abi:         abi,
 		key:         key,
@@ -147,6 +148,15 @@ func (bm *BlockMaker) Vote(hash common.Hash, nonce uint64, key *ecdsa.PrivateKey
 	return types.NewTransaction(nonce, bm.address, new(big.Int), big.NewInt(200000), new(big.Int), vote).SignECDSA(key)
 }
 
+func (bm *BlockMaker) Verify(block pow.Block) bool {
+	if block.NumberU64() == 1 {
+		return true
+	}
+
+	newBlock, _ := bm.Create(nil)
+	return newBlock.ParentHash() == block.(*types.Block).Hash()
+}
+
 func (bm *BlockMaker) call(method string, args ...interface{}) []byte {
 	input, err := bm.abi.Pack(method, args...)
 	if err != nil {
@@ -167,6 +177,10 @@ func (bm *BlockMaker) execute(input []byte) []byte {
 }
 
 func findDecendant(hash common.Hash, blockchain *core.BlockChain) *types.Block {
+	if hash == (common.Hash{}) {
+		return blockchain.Genesis()
+	}
+
 	block := blockchain.GetBlock(hash)
 	// get next in line
 	return blockchain.GetBlockByNumber(block.NumberU64() + 1)
