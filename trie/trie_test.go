@@ -479,3 +479,21 @@ func updateString(trie *Trie, k, v string) {
 func deleteString(trie *Trie, k string) {
 	trie.Delete([]byte(k))
 }
+
+func TestDel(t *testing.T) {
+	trie := newEmpty()
+
+	vals := []struct{ k, v string }{
+		{"do", "verb"},
+		{"ether", "wookiedoo"},
+		{"horse", "stallion"},
+		{"shaman", "horse"},
+		{"doge", "coin"},
+		{"dog", "puppy"},
+		{"somethingveryoddindeedthis is", "myothernodedata"},
+	}
+	for _, val := range vals {
+		updateString(trie, val.k, val.v)
+	}
+	deleteString(trie, "do")
+}

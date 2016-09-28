@@ -284,6 +284,8 @@ func (t *Trie) TryDelete(key []byte) error {
 // nodes on the way up after deleting recursively.
 func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 	switch n := n.(type) {
+	case valueNode:
+		return true, nil, nil
 	case shortNode:
 		matchlen := prefixLen(key, n.Key)
 		if matchlen < len(n.Key) {
