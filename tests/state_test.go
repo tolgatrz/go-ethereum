@@ -478,6 +478,18 @@ func TestEIP150MemExpandingCalls(t *testing.T) {
 	}
 }
 
+func TestEIP150Changed(t *testing.T) {
+	ruleSet := RuleSet{
+		HomesteadBlock:           new(big.Int),
+		HomesteadGasRepriceBlock: big.NewInt(2457000),
+	}
+
+	fn := filepath.Join(stateTestDir, "EIP150", "stChangedTests.json")
+	if err := RunStateTest(ruleSet, fn, StateSkipTests); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestEIP150HomesteadStateSystemOperations(t *testing.T) {
 	ruleSet := RuleSet{
 		HomesteadBlock:           new(big.Int),
