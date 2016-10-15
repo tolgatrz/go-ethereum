@@ -220,13 +220,6 @@ func TestDAOBcTheDao(t *testing.T) {
 	}
 }
 
-func TestEIP150Bc(t *testing.T) {
-	err := RunBlockTest(big.NewInt(0), big.NewInt(8), big.NewInt(10), filepath.Join(blockTestDir, "TestNetwork", "bcEIP150Test.json"), BlockSkipTests)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestHomesteadBcExploit(t *testing.T) {
 	err := RunBlockTest(big.NewInt(0), nil, nil, filepath.Join(blockTestDir, "Homestead", "bcExploitTest.json"), BlockSkipTests)
 	if err != nil {
@@ -241,6 +234,93 @@ func TestHomesteadBcShanghaiLove(t *testing.T) {
 }
 func TestHomesteadBcSuicideIssue(t *testing.T) {
 	err := RunBlockTest(big.NewInt(0), nil, nil, filepath.Join(blockTestDir, "Homestead", "bcSuicideIssue.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150Bc(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), big.NewInt(8), big.NewInt(10), filepath.Join(blockTestDir, "TestNetwork", "bcEIP150Test.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcForkStressTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcForkStressTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcForkGasPricerTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcGasPricerTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcInvalidHeader(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcInvalidHeaderTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcInvalidRLPTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcInvalidRLPTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcMultiChainTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcMultiChainTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcRPC_API_TestTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcRPC_API_TEST.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcStateTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcStateTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEIP150BcTotalDifficultyTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcStateTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestEIP150BcUncleaHeaderValidity(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcUncleHeaderValiditiy.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestEIP150BcUncleTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcUncleTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestEIP150BcValidBlockTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcValidBlockTest.json"), BlockSkipTests)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+func TestEIP150BcWalletTest(t *testing.T) {
+	err := RunBlockTest(big.NewInt(0), nil, big.NewInt(0), filepath.Join(blockTestDir, "EIP150", "bcWalletTest.json"), BlockSkipTests)
 	if err != nil {
 		t.Fatal(err)
 	}
